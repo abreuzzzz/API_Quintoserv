@@ -1,0 +1,33 @@
+name: Atualizar Conta Azul
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 06:00 BRT (09:00 UTC)
+    - cron: '0 15 * * *'  # 12:00 BRT (15:00 UTC)
+    - cron: '0 19 * * *'  # 16:00 BRT (19:00 UTC)
+    - cron: '0 22 * * *'  # 19:00 BRT (22:00 UTC)
+
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Rodar script
+        env:
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          DB_URL: ${{ secrets.DB_URL }}
+          GDRIVE_SERVICE_ACCOUNT: ${{ secrets.GDRIVE_SERVICE_ACCOUNT }}
+        run: |
+          python Update_contas.py
