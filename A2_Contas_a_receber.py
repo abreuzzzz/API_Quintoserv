@@ -16,12 +16,50 @@ drive_service = build("drive", "v3", credentials=credentials)
 sheets_service = build("sheets", "v4", credentials=credentials)
 
 # ===================== Configurações =====================
+CONTA_AZUL_TOKEN = os.getenv("CONTA_AZUL_TOKEN", "3ee0ec6e-9588-47d4-addb-6fda7f4199ec")
+WORKER_URL = os.getenv("CONTA_AZUL_WORKER_URL", "https://ca.souza-brunoabreu.workers.dev")
+
 export_url = "https://services.contaazul.com/finance-pro-reports/v1/financial-statement-view/export"
-headers = {
-    'x-authorization': '3ee0ec6e-9588-47d4-addb-6fda7f4199ec',
-    'Content-Type': 'application/json',
-    'User-Agent': 'Mozilla/5.0'
-}
+
+
+def call_conta_azul_proxy(payload: dict):
+    """Envia a requisição pela rota do Cloudflare Worker para contornar 403/cors."""
+    request_body = {
+        "url": export_url,
+        "method": "POST",
+        "headers": {
+            "X-Authorization": CONTA_AZUL_TOKEN,
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, application/json, */*",
+            "Origin": "https://pro.contaazul.com",
+            "Referer": "https://pro.contaazul.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15"
+        },
+        "body": payload,
+    }
+
+    response = requests.post(WORKER_URL, json=request_body, timeout=120)
+    response.raise_for_status()
+    content = response.content
+
+    if not content or not content.startswith(b"PK"):
+        preview = content[:300]
+        raise ValueError(
+            f"Resposta inválida do worker. status={response.status_code}, "
+            f"content_type={response.headers.get('Content-Type')}, preview={preview!r}"
+        )
+
+    # Detecta corrupção de binário: bytes inválidos UTF-8 substituídos por U+FFFD
+    # (EF BF BD). Isso acontece quando o worker usa upstream.text() em vez de
+    # arrayBuffer(), destruindo o ZIP/XLSX.
+    if b"\xef\xbf\xbd" in content:
+        raise ValueError(
+            "Arquivo XLSX corrompido: o worker retornou bytes U+FFFD (EF BF BD). "
+            "Corrija o worker para usar upstream.arrayBuffer() em vez de upstream.text()."
+        )
+
+    return content
+
 
 # Lista de status para processar
 status_list = ["ACQUITTED", "PARTIAL", "PENDING", "LOST", "RENEGOTIATED", "CONCILIATED", "OVERDUE"]
@@ -34,20 +72,19 @@ all_dataframes = []
 for status_atual in status_list:
     print(f"\n📥 Baixando dados para status: {status_atual}")
 
-    payload = json.dumps({
+    payload = {
         "dateFrom": None,
         "dateTo": None,
         "quickFilter": "ALL",
         "search": "",
         "status": [status_atual],
         "type": ["REVENUE"]
-    })
+    }
 
     try:
-        response = requests.post(export_url, headers=headers, data=payload)
-        response.raise_for_status()
+        response_content = call_conta_azul_proxy(payload)
 
-        xlsx_content = BytesIO(response.content)
+        xlsx_content = BytesIO(response_content)
         df = pd.read_excel(xlsx_content)
         df['status'] = status_atual
 
