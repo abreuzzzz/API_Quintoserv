@@ -59,8 +59,8 @@ def ler_planilha_por_id(nome_arquivo):
 
 # Lê os dados das planilhas principais
 print("📥 Lendo planilhas de contas a receber e contas a pagar...")
-df_receber = ler_planilha_por_id("Financeiro_contas_a_receber_Martins")
-df_pagar = ler_planilha_por_id("Financeiro_contas_a_pagar_Martins")
+df_receber = ler_planilha_por_id("Financeiro_contas_a_receber_Quintoserv")
+df_pagar = ler_planilha_por_id("Financeiro_contas_a_pagar_Quintoserv")
 
 # Adiciona a coluna tipo
 df_receber["tipo"] = "Receita"
@@ -179,7 +179,7 @@ if 'Centro de Custo 1' in df_completo.columns:
 
 # 📄 Abrir a planilha de saída e escrever UMA ÚNICA VEZ
 print("\n📤 Atualizando planilha consolidada...")
-planilha_saida = client.open_by_key(planilhas_ids["Financeiro_Completo_Martins"])
+planilha_saida = client.open_by_key(planilhas_ids["Financeiro_Completo_Quintoserv"])
 aba_saida = planilha_saida.sheet1
 
 # Limpa a aba e sobrescreve
